@@ -1,0 +1,10 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+SpeechRecognition==3.10.0
+pydub==0.25.1
+python-multipart==0.0.6
+aiofiles==23.2.1
+PyAudio==0.2.14
+requests==2.31.0
+pyttsx3==2.90
+gtts==2.4.0
