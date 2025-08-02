@@ -167,6 +167,7 @@ class ForwardingService:
             
             # Forward to external API
             forward_result = await self.rest_api_client.forward_text_input_result(
+                text,
                 text_input_result,
                 target_url,
                 session_id,

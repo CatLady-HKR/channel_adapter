@@ -226,6 +226,7 @@ class RestApiClient:
     
     async def forward_text_input_result(
         self,
+        text: str,
         text_input_result: Dict[str, Any],
         target_url: str,
         session_id: Optional[str] = None,
@@ -248,7 +249,7 @@ class RestApiClient:
         """
         # Prepare payload
         payload = {
-            "text": text_input_result,
+            "text": text,
             "session_id": session_id,
             "user_id": user_id,
             "channel": channel,
