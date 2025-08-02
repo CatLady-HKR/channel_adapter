@@ -209,8 +209,8 @@ class RestApiClient:
             "session_id": session_id,
             "user_id": user_id,
             "channel": channel,
-            "source": "channel-adapter",
-            "timestamp": transcription_result.get("timestamp", None)
+            # "source": "channel-adapter",
+            # "timestamp": transcription_result.get("timestamp", None)
         }
         
         if include_metadata:
@@ -252,8 +252,8 @@ class RestApiClient:
             "session_id": session_id,
             "user_id": user_id,
             "channel": channel,
-            "source": "channel-adapter",
-            "timestamp": text_input_result.get("received_at", None)
+            # "source": "channel-adapter",
+            # "timestamp": text_input_result.get("received_at", None)
         }
         
         if include_metadata:
