@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Hardcoded target URL for forwarding
-TARGET_URL = "http://localhost:8003"
+TARGET_URL = "http://localhost:8003/chat"
 
 # Initialize FastAPI app
 app = FastAPI(
