@@ -205,7 +205,7 @@ class RestApiClient:
         """
         # Prepare payload
         payload = {
-            "text": transcription_result,
+            "text": transcription_result["text"],
             "session_id": session_id,
             "user_id": user_id,
             "channel": channel,
