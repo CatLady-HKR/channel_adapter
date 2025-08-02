@@ -31,12 +31,23 @@ class ForwardingService:
         file: UploadFile,
         target_url: str,
         language: str = "en-US",
-        include_metadata: bool = True
+        include_metadata: bool = True,
+        session_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        channel: Optional[str] = None
     ) -> Dict[str, Any]:
         """Convert audio file to text and forward result to external API."""
         try:
             # Convert voice to text
             transcription_result = await self.voice_to_text_converter.transcribe_audio(file, language)
+            
+            # Add session tracking information to the transcription result
+            if session_id or user_id or channel:
+                transcription_result["session_info"] = {
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "channel": channel
+                }
             
             # Forward the result to external API
             forward_result = await self.rest_api_client.forward_transcription_result(
@@ -131,7 +142,10 @@ class ForwardingService:
         source: str = "ui",
         timestamp: Optional[str] = None,
         include_metadata: bool = True,
-        custom_headers: Optional[str] = None
+        custom_headers: Optional[str] = None,
+        session_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        channel: Optional[str] = None
     ) -> Dict[str, Any]:
         """Receive text input and forward to external API."""
         try:
@@ -143,10 +157,21 @@ class ForwardingService:
             from app.utils import create_text_input_result_format
             text_input_result = create_text_input_result_format(text, source, timestamp)
             
+            # Add session tracking information to the text input result
+            if session_id or user_id or channel:
+                text_input_result["session_info"] = {
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "channel": channel
+                }
+            
             # Forward to external API
             forward_result = await self.rest_api_client.forward_text_input_result(
                 text_input_result,
                 target_url,
+                session_id,
+                user_id,
+                channel,
                 include_metadata,
                 headers
             )

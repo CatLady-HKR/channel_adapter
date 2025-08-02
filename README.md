@@ -11,8 +11,11 @@ A comprehensive FastAPI service that provides bidirectional conversion between v
 
 ## 🚀 Current Version: 2.0.0
 **Complete Integration Hub with Modular Architecture** - The Channel Adapter now serves as a full-featured integration hub with:
-- ✅ **12 REST API Endpoints** covering all conversion and forwarding scenarios
+- ✅ **13 REST API Endpoints** covering all conversion and forwarding scenarios including voice-to-voice workflow
 - ✅ **Modular Architecture** with dedicated modules for voice processing and external integrations  
+- ✅ **Enhanced REST API Client** with session tracking, batch processing, and concurrent request handling
+- ✅ **Session Tracking System** with session_id, user_id, and channel support across all forwarding endpoints
+- ✅ **Voice-to-Voice Workflow** complete conversational pipeline with external API integration
 - ✅ **Comprehensive Forwarding System** for all processing types with metadata enrichment
 - ✅ **Base64 Audio Encoding** for including audio data in API forwarding
 - ✅ **Concurrent Processing** with configurable limits for batch operations
@@ -38,12 +41,14 @@ A comprehensive FastAPI service that provides bidirectional conversion between v
 - 🐳 **Docker Ready**: Fully containerized application with easy deployment
 - 📊 **Modular Architecture**: Separated voice-to-text and text-to-voice modules for better maintainability
 - 🔗 **REST API Forwarding**: Automatically forward transcription results to external APIs
-- 📝 **Text Input Forwarding**: Forward UI text inputs to external services
+- 📝 **Text Input Forwarding**: Forward UI text inputs to external services  
 - 🎵 **Audio Result Forwarding**: Forward text-to-voice results with optional audio data
 - 🌐 **External Service Integration**: Connect with webhooks and third-party services
 - ⚡ **Concurrent Processing**: Parallel API calls for batch operations
 - 📦 **Batch Forwarding**: Process and forward multiple items concurrently
 - 🔄 **Base64 Audio Encoding**: Include audio data in forwarded payloads
+- 👥 **Session Tracking**: Complete session management with session_id, user_id, and channel support
+- 🔄 **Voice-to-Voice Workflow**: Complete conversational pipeline with external API integration
 - 🚀 **High Performance**: Async processing with FastAPI
 - 📝 **Clean API Design**: Focused RESTful endpoints with clear documentation
 - 🔧 **Cloud-based TTS**: Reliable Google Text-to-Speech integration with high-quality audio
@@ -88,13 +93,65 @@ A comprehensive FastAPI service that provides bidirectional conversion between v
 - `POST /text-to-voice/info/` - Convert text to speech and return conversion info only
 - `POST /text-to-voice/batch/` - Convert multiple texts to speech
 
+### Voice-to-Voice Workflow
+- `POST /voice-to-voice/` - Complete voice-to-voice workflow with external API integration
+
 ### REST API Forwarding
-- `POST /voice-to-text-forward/` - Convert audio to text and forward result to external API
+- `POST /voice-to-text-forward/` - Convert audio to text and forward result to external API (supports session tracking)
 - `POST /voice-to-text-batch-forward/` - Convert multiple audio files and forward results to external API  
 - `POST /forward-transcription/` - Forward existing transcription text to external API
-- `POST /text-input-forward/` - Receive text input and forward to external API
+- `POST /text-input-forward/` - Receive text input and forward to external API (supports session tracking)
 - `POST /text-to-voice-forward/` - Convert text to speech and forward result to external API
 - `POST /text-to-voice-batch-forward/` - Convert multiple texts to speech and forward results to external API
+
+#### 🔍 **Session Tracking Parameters**
+The following endpoints support session tracking with optional parameters:
+- **`session_id`**: Unique identifier for the conversation/session
+- **`user_id`**: Identifier for the user making the request  
+- **`channel`**: Source channel (e.g., "web_app", "mobile", "api", "bot")
+
+**Supported Endpoints:**
+- `POST /voice-to-text-forward/` - Session info included in transcription result
+- `POST /text-input-forward/` - Session info included in text input result
+
+**Session Info Format:**
+```json
+{
+  "session_info": {
+    "session_id": "session_123",
+    "user_id": "user_456", 
+    "channel": "web_app"
+  }
+}
+```
+
+#### 🎙️ **Voice-to-Voice Workflow**
+The `/voice-to-voice/` endpoint provides a complete conversational workflow:
+
+**Process Flow:**
+1. **Voice Input** → Receives audio file with session tracking
+2. **Speech-to-Text** → Converts audio to text using Google Speech Recognition
+3. **API Forward** → Sends transcription + session info to `localhost:8003`
+4. **Response Processing** → Extracts text from external API response
+5. **Text-to-Speech** → Converts response text to audio using gTTS
+6. **Voice Output** → Returns MP3 audio file with workflow metadata
+
+**Parameters:**
+- `file` (required): Audio file (WAV, MP3, FLAC, M4A, OGG, AAC)
+- `session_id` (optional): Conversation session identifier
+- `user_id` (optional): User identifier  
+- `channel` (optional): Source channel (e.g., "voice_chat", "phone")
+- `language` (optional): Speech recognition language (default: "en-US")
+- `voice_language` (optional): TTS language (default: "en")
+- `slow` (optional): Slow speech flag for TTS (default: false)
+
+**Response Headers:**
+- `X-Original-Text`: The transcribed input text
+- `X-Response-Text`: The extracted response text
+- `X-Session-ID`: Session identifier
+- `X-User-ID`: User identifier
+- `X-Channel`: Channel identifier
+- `X-Workflow`: "voice-to-voice-complete"
 
 ### API Documentation
 Once the service is running, visit:
@@ -181,6 +238,24 @@ curl -X POST "http://localhost:8000/text-to-voice/batch/" \
   -d "texts=Hello world&texts=How are you today&language=en&slow=false"
 ```
 
+### Voice-to-Voice Workflow
+```bash
+# Complete voice-to-voice conversation workflow
+curl -X POST "http://localhost:8000/voice-to-voice/" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@input_audio.wav" \
+  -F "session_id=conv_123" \
+  -F "user_id=user_456" \
+  -F "channel=voice_chat" \
+  -F "language=en-US" \
+  -F "voice_language=en" \
+  -F "slow=false" \
+  --output response_audio.mp3
+
+# The response will be an MP3 file with headers containing workflow info
+# Headers: X-Original-Text, X-Response-Text, X-Session-ID, etc.
+```
+
 ### REST API Forwarding
 ```bash
 # Convert audio to text and forward to external API
@@ -189,7 +264,10 @@ curl -X POST "http://localhost:8000/voice-to-text-forward/" \
   -F "file=@audio.wav" \
   -F "target_url=https://your-api.com/webhook" \
   -F "language=en-US" \
-  -F "include_metadata=true"
+  -F "include_metadata=true" \
+  -F "session_id=session_123" \
+  -F "user_id=user_456" \
+  -F "channel=web_app"
 
 # Forward existing transcription text
 curl -X POST "http://localhost:8000/forward-transcription/" \
@@ -208,7 +286,7 @@ curl -X POST "http://localhost:8000/voice-to-text-batch-forward/" \
 # Forward text input to external API
 curl -X POST "http://localhost:8000/text-input-forward/" \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "text=Hello from UI&target_url=https://your-api.com/webhook&source=web_interface"
+  -d "text=Hello from UI&target_url=https://your-api.com/webhook&source=web_interface&session_id=session_123&user_id=user_456&channel=web_app"
 
 # Convert text to voice and forward result
 curl -X POST "http://localhost:8000/text-to-voice-forward/" \
@@ -278,12 +356,16 @@ with open('audio_file.wav', 'rb') as f:
     data = {
         'target_url': 'https://your-api.com/webhook',
         'language': 'en-US',
-        'include_metadata': True
+        'include_metadata': True,
+        'session_id': 'session_123',
+        'user_id': 'user_456',
+        'channel': 'python_client'
     }
     response = requests.post('http://localhost:8000/voice-to-text-forward/', files=files, data=data)
     result = response.json()
     print(f"Transcription: {result['transcription']['text']}")
     print(f"Forward success: {result['forward_result']['success']}")
+    print(f"Session info: {result['transcription'].get('session_info', {})}")
 
 # Forward existing transcription
 data = {
@@ -315,11 +397,15 @@ data = {
     'text': 'Hello from Python client',
     'target_url': 'https://your-api.com/webhook',
     'source': 'python_app',
-    'include_metadata': True
+    'include_metadata': True,
+    'session_id': 'session_123',
+    'user_id': 'user_456',
+    'channel': 'python_client'
 }
 response = requests.post('http://localhost:8000/text-input-forward/', data=data)
 result = response.json()
 print(f"Text input forward success: {result['success']}")
+print(f"Session info: {result['text_input'].get('session_info', {})}")
 
 # Text-to-voice forwarding
 data = {
@@ -345,6 +431,30 @@ data = {
 response = requests.post('http://localhost:8000/text-to-voice-batch-forward/', data=data)
 result = response.json()
 print(f"Batch TTS forwards: {result['successful_forwards']}/{result['total_conversions']}")
+
+# Voice-to-Voice Workflow Example
+with open('input_audio.wav', 'rb') as f:
+    files = {'file': f}
+    data = {
+        'session_id': 'conv_123',
+        'user_id': 'user_456', 
+        'channel': 'python_client',
+        'language': 'en-US',
+        'voice_language': 'en',
+        'slow': False
+    }
+    response = requests.post('http://localhost:8000/voice-to-voice/', files=files, data=data)
+    
+    # Save the response audio
+    with open('response_audio.mp3', 'wb') as audio_file:
+        audio_file.write(response.content)
+    
+    # Access workflow metadata from headers
+    print(f"Original text: {response.headers.get('X-Original-Text', '')}")
+    print(f"Response text: {response.headers.get('X-Response-Text', '')}")
+    print(f"Session ID: {response.headers.get('X-Session-ID', '')}")
+    print(f"Workflow: {response.headers.get('X-Workflow', '')}")
+    print("Voice response saved as response_audio.mp3")
 ```
 
 ## Supported Languages & Formats
@@ -484,7 +594,7 @@ channel_adapter/
 │   ├── forwarding.py            # Dedicated forwarding service module
 │   ├── voice_to_text.py         # Voice-to-text conversion module
 │   ├── text_to_voice.py         # Text-to-voice conversion module (gTTS)
-│   ├── rest_api_client.py       # REST API client for external service integration
+│   ├── rest_api_client.py       # Enhanced REST API client with session tracking and batch processing
 │   ├── test_client.py           # Basic test client (if exists)
 │   └── test_comprehensive.py    # Comprehensive test suite (if exists)
 ├── test_audio/                  # Directory for test audio files
@@ -508,7 +618,7 @@ channel_adapter/
 - **`forwarding.py`**: ForwardingService class with all REST API forwarding logic
 - **`voice_to_text.py`**: Voice-to-text conversion using Google Speech Recognition
 - **`text_to_voice.py`**: Text-to-voice synthesis using Google Text-to-Speech (gTTS)
-- **`rest_api_client.py`**: HTTP client for external API integrations
+- **`rest_api_client.py`**: Enhanced HTTP client for external API integrations with session tracking and batch processing
 
 ### Adding New Features
 The modular architecture makes extending the Channel Adapter much simpler:
@@ -524,6 +634,74 @@ The modular architecture makes extending the Channel Adapter much simpler:
 - **Error Handling**: Use `handle_api_error()` for consistent error responses
 - **Response Formatting**: Use utility functions for standardized responses
 - **Type Safety**: Proper type hints and Optional handling throughout
+
+#### 🌐 **REST API Client Enhancements (v2.0.0)**
+
+The `rest_api_client.py` module has been significantly enhanced with advanced features:
+
+**🔧 Core Features:**
+- **Session Management**: Persistent aiohttp sessions with automatic session handling
+- **Advanced Error Handling**: Comprehensive exception handling with detailed error responses
+- **Batch Processing**: Concurrent request processing with configurable limits
+- **Custom Headers**: Full support for custom HTTP headers in API calls
+- **Multiple HTTP Methods**: Support for POST, PUT, PATCH operations
+
+**📊 Key Methods:**
+- `send_transcription()`: Core method for sending data to external APIs
+- `send_batch_transcriptions()`: Concurrent processing of multiple requests with semaphore control
+- `forward_transcription_result()`: Enhanced with session tracking (session_id, user_id, channel)
+- `forward_text_input_result()`: New method for forwarding text input with session metadata
+- `forward_text_to_voice_result()`: Forward TTS results with optional base64 audio data inclusion
+
+**⚡ Performance Features:**
+- **Connection Pooling**: Reusable aiohttp sessions for improved performance
+- **Concurrent Limits**: Configurable semaphore control for batch operations (default: 5 concurrent requests)
+- **Timeout Management**: Configurable request timeouts (default: 30 seconds)
+- **Session Persistence**: Automatic session lifecycle management
+
+**🔒 Session Tracking Integration:**
+All forwarding methods now support comprehensive session tracking:
+```python
+# Session tracking in transcription forwarding
+await rest_api_client.forward_transcription_result(
+    transcription_result,
+    target_url,
+    session_id="conv_123",
+    user_id="user_456", 
+    channel="web_app",
+    include_metadata=True
+)
+
+# Session tracking in text input forwarding  
+await rest_api_client.forward_text_input_result(
+    text_input_result,
+    target_url,
+    session_id="conv_123",
+    user_id="user_456",
+    channel="mobile_app",
+    include_metadata=True
+)
+```
+
+**📦 Payload Structure:**
+Enhanced payloads now include session information and comprehensive metadata:
+```json
+{
+  "text": "transcribed content",
+  "session_id": "conv_123",
+  "user_id": "user_456", 
+  "channel": "web_app",
+  "source": "channel-adapter",
+  "timestamp": "2025-08-02T10:30:00Z",
+  "metadata": {
+    "service": "channel-adapter",
+    "version": "2.0.0",
+    "conversion_engine": "google-speech-recognition",
+    "audio_format": "wav",
+    "language": "en-US"
+  }
+}
+```
 
 #### 🧪 **Development Workflow:**
 1. Fork the repository
@@ -617,14 +795,23 @@ docker logs <container_id>
 ### Code Quality Improvements
 - **50% Code Reduction**: main.py simplified from 400+ to 228 lines
 - **Eliminated Code Duplication**: Header parsing, error handling, and response formatting centralized
-- **Consistent Patterns**: Standardized approach across all 12 endpoints
+- **Consistent Patterns**: Standardized approach across all 13 endpoints
 - **Type Safety**: Proper Optional type handling and parameter validation
+- **Enhanced REST Client**: Comprehensive session tracking and batch processing capabilities
 
 ### Architecture Enhancements  
 - **Separation of Concerns**: Clear module boundaries with single responsibilities
 - **Dependency Injection**: ForwardingService pattern for better testability
 - **Utility Functions**: Reusable components in utils.py reduce redundancy
 - **Error Handling**: Centralized error management with consistent responses
+- **Session Management**: Persistent HTTP sessions with lifecycle management
+
+### Integration Capabilities
+- **Session Tracking**: Complete session lifecycle management across all forwarding operations
+- **Concurrent Processing**: Configurable semaphore control for batch operations
+- **Voice-to-Voice Workflow**: End-to-end conversational pipeline with external API integration
+- **Advanced Payloads**: Rich metadata inclusion with session information and processing details
+- **Connection Pooling**: Optimized HTTP client with persistent session reuse
 
 ### Developer Experience
 - **Easier Maintenance**: Modular structure makes updates simpler and safer

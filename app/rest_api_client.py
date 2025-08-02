@@ -185,6 +185,9 @@ class RestApiClient:
         self,
         transcription_result: Dict[str, Any],
         target_url: str,
+        session_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        channel: Optional[str] = None,
         include_metadata: bool = True,
         headers: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
@@ -202,7 +205,10 @@ class RestApiClient:
         """
         # Prepare payload
         payload = {
-            "transcription": transcription_result,
+            "text": transcription_result,
+            "session_id": session_id,
+            "user_id": user_id,
+            "channel": channel,
             "source": "channel-adapter",
             "timestamp": transcription_result.get("timestamp", None)
         }
@@ -222,6 +228,9 @@ class RestApiClient:
         self,
         text_input_result: Dict[str, Any],
         target_url: str,
+        session_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        channel: Optional[str] = None,
         include_metadata: bool = True,
         headers: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
@@ -239,7 +248,10 @@ class RestApiClient:
         """
         # Prepare payload
         payload = {
-            "text_input": text_input_result,
+            "text": text_input_result,
+            "session_id": session_id,
+            "user_id": user_id,
+            "channel": channel,
             "source": "channel-adapter",
             "timestamp": text_input_result.get("received_at", None)
         }

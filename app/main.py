@@ -19,6 +19,9 @@ from app.utils import create_text_input_result_format, handle_api_error
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Hardcoded target URL for forwarding
+TARGET_URL = "http://localhost:8003"
+
 # Initialize FastAPI app
 app = FastAPI(
     title="channel adapter",
@@ -58,7 +61,9 @@ async def root():
             "external service integration",
             "text input forwarding",
             "text-to-voice forwarding",
-            "audio data forwarding"
+            "audio data forwarding",
+            "session tracking support",
+            "voice-to-voice workflow"
         ]
     }
 
@@ -134,61 +139,62 @@ async def convert_text_to_voice_batch(
 @app.post("/voice-to-text-forward/")
 async def convert_voice_to_text_and_forward(
     file: UploadFile = File(...),
-    target_url: str = Form(...),
     language: Optional[str] = "en-US",
-    include_metadata: bool = Form(True)
+    include_metadata: bool = Form(True),
+    session_id: Optional[str] = Form(None),
+    user_id: Optional[str] = Form(None),
+    channel: Optional[str] = Form(None)
 ):
     """Convert audio file to text and forward result to external API."""
     return await forwarding_service.forward_voice_to_text(
-        file, target_url, language or "en-US", include_metadata
+        file, TARGET_URL, language or "en-US", include_metadata, session_id, user_id, channel
     )
 
 @app.post("/voice-to-text-batch-forward/")
 async def convert_voice_to_text_batch_and_forward(
     files: List[UploadFile] = File(...),
-    target_url: str = Form(...),
     language: Optional[str] = "en-US",
     include_metadata: bool = Form(True),
     concurrent_limit: int = Form(3)
 ):
     """Convert multiple audio files to text and forward results to external API."""
     return await forwarding_service.forward_voice_to_text_batch(
-        files, target_url, language or "en-US", include_metadata, concurrent_limit
+        files, TARGET_URL, language or "en-US", include_metadata, concurrent_limit
     )
 
 @app.post("/forward-transcription/")
 async def forward_existing_transcription(
     transcription_text: str = Form(...),
-    target_url: str = Form(...),
     language: Optional[str] = Form("en-US"),
     source: Optional[str] = Form("manual"),
     custom_headers: Optional[str] = Form(None)
 ):
     """Forward an existing transcription text to external API."""
     return await forwarding_service.forward_existing_transcription(
-        transcription_text, target_url, language or "en-US", source or "manual", custom_headers
+        transcription_text, TARGET_URL, language or "en-US", source or "manual", custom_headers
     )
 
 # Text input forwarding endpoints
 @app.post("/text-input-forward/")
 async def receive_text_from_ui_and_forward(
     text: str = Form(...),
-    target_url: str = Form(...),
     source: Optional[str] = Form("ui"),
     timestamp: Optional[str] = Form(None),
     include_metadata: bool = Form(True),
-    custom_headers: Optional[str] = Form(None)
+    custom_headers: Optional[str] = Form(None),
+    session_id: Optional[str] = Form(None),
+    user_id: Optional[str] = Form(None),
+    channel: Optional[str] = Form(None)
 ):
     """Receive text input from UI and forward to external API."""
     return await forwarding_service.forward_text_input(
-        text, target_url, source or "ui", timestamp, include_metadata, custom_headers
+        text, TARGET_URL, source or "ui", timestamp, include_metadata, custom_headers, session_id, user_id, channel
     )
 
 # Text-to-voice forwarding endpoints
 @app.post("/text-to-voice-forward/")
 async def convert_text_to_voice_and_forward(
     text: str = Form(...),
-    target_url: str = Form(...),
     language: str = Form("en"),
     slow: bool = Form(False),
     include_audio_data: bool = Form(False),
@@ -197,13 +203,12 @@ async def convert_text_to_voice_and_forward(
 ):
     """Convert text to speech and forward result to external API."""
     return await forwarding_service.forward_text_to_voice(
-        text, target_url, language, slow, include_audio_data, include_metadata, custom_headers
+        text, TARGET_URL, language, slow, include_audio_data, include_metadata, custom_headers
     )
 
 @app.post("/text-to-voice-batch-forward/")
 async def convert_text_to_voice_batch_and_forward(
     texts: List[str] = Form(...),
-    target_url: str = Form(...),
     language: str = Form("en"),
     slow: bool = Form(False),
     include_audio_data: bool = Form(False),
@@ -213,8 +218,110 @@ async def convert_text_to_voice_batch_and_forward(
 ):
     """Convert multiple texts to speech and forward results to external API."""
     return await forwarding_service.forward_text_to_voice_batch(
-        texts, target_url, language, slow, include_audio_data, include_metadata, concurrent_limit, custom_headers
+        texts, TARGET_URL, language, slow, include_audio_data, include_metadata, concurrent_limit, custom_headers
     )
+
+# Voice-to-Voice workflow endpoint
+@app.post("/voice-to-voice/")
+async def voice_to_voice_workflow(
+    file: UploadFile = File(...),
+    session_id: Optional[str] = Form(None),
+    user_id: Optional[str] = Form(None),
+    channel: Optional[str] = Form(None),
+    language: Optional[str] = "en-US",
+    voice_language: str = Form("en"),
+    slow: bool = Form(False)
+):
+    """
+    Complete voice-to-voice workflow:
+    1. Convert voice file to text
+    2. Forward text to external API with session info
+    3. Get response and extract text field
+    4. Convert response text to voice
+    5. Return voice file
+    """
+    try:
+        # Step 1: Convert voice to text
+        logger.info(f"Converting voice to text for session {session_id}")
+        transcription_result = await voice_to_text_converter.transcribe_audio(file, language or "en-US")
+        
+        if not transcription_result.get("success", False):
+            raise HTTPException(status_code=400, detail="Failed to transcribe audio")
+        
+        # Add session info to transcription result
+        if session_id or user_id or channel:
+            transcription_result["session_info"] = {
+                "session_id": session_id,
+                "user_id": user_id,
+                "channel": channel
+            }
+        
+        # Step 2: Forward to external API
+        logger.info(f"Forwarding transcription to {TARGET_URL}")
+        forward_result = await rest_api_client.forward_transcription_result(
+            transcription_result,
+            TARGET_URL,
+            include_metadata=True
+        )
+        
+        if not forward_result.get("success", False):
+            raise HTTPException(status_code=500, detail="Failed to forward transcription to external API")
+        
+        # Step 3: Extract text from response
+        response_data = forward_result.get("response_data", {})
+        response_text = None
+        
+        # Try different common field names for text response
+        text_fields = ["text", "response", "message", "reply", "answer", "content", "output"]
+        for field in text_fields:
+            if field in response_data and response_data[field]:
+                response_text = str(response_data[field])
+                break
+        
+        # If no text field found, try to find any string value in the response
+        if not response_text:
+            for key, value in response_data.items():
+                if isinstance(value, str) and len(value.strip()) > 0:
+                    response_text = value
+                    break
+        
+        if not response_text:
+            raise HTTPException(status_code=500, detail="No text field found in external API response")
+        
+        logger.info(f"Extracted response text: {response_text[:100]}...")
+        
+        # Step 4: Convert response text back to voice
+        logger.info("Converting response text to voice")
+        voice_response = await text_to_voice_converter.convert_to_speech(
+            response_text, 
+            voice_language, 
+            slow
+        )
+        
+        # Step 5: Return the voice file with metadata
+        if hasattr(voice_response, 'path'):
+            # Return the audio file with additional headers containing workflow info
+            return FileResponse(
+                voice_response.path,
+                media_type="audio/mpeg",
+                filename=f"response_{session_id or 'audio'}.mp3",
+                headers={
+                    "X-Original-Text": transcription_result.get("text", ""),
+                    "X-Response-Text": response_text,
+                    "X-Session-ID": session_id or "",
+                    "X-User-ID": user_id or "",
+                    "X-Channel": channel or "",
+                    "X-Workflow": "voice-to-voice-complete"
+                }
+            )
+        else:
+            return voice_response
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in voice-to-voice workflow: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Voice-to-voice workflow failed: {str(e)}")
 
 # Application lifecycle events
 @app.on_event("shutdown")
