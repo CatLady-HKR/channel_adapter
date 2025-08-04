@@ -11,12 +11,13 @@ A comprehensive FastAPI service that provides bidirectional conversion between v
 
 ## 🚀 Current Version: 2.0.0
 **Complete Integration Hub with Modular Architecture & Authentication** - The Channel Adapter now serves as a full-featured integration hub with:
-- ✅ **13 REST API Endpoints** covering all conversion and forwarding scenarios including voice-to-voice workflow
+- ✅ **14 REST API Endpoints** covering all conversion and forwarding scenarios including voice-to-voice workflow and direct text chat
 - ✅ **JWT Authentication System** with role-based access control for secure endpoint access
 - ✅ **Modular Architecture** with dedicated modules for voice processing and external integrations  
 - ✅ **Enhanced REST API Client** with session tracking, batch processing, and concurrent request handling
 - ✅ **Session Tracking System** with session_id, user_id, and channel support across all forwarding endpoints
 - ✅ **Voice-to-Voice Workflow** complete conversational pipeline with external API integration
+- ✅ **Direct Text Chat** streamlined text communication with agent response extraction
 - ✅ **Docker Integration** with host.docker.internal for seamless container communication
 - ✅ **Comprehensive Forwarding System** for all processing types with metadata enrichment
 - ✅ **Base64 Audio Encoding** for including audio data in API forwarding
@@ -87,6 +88,7 @@ A comprehensive FastAPI service that provides bidirectional conversion between v
 
 ### Text Input Processing
 - `POST /text-input/` - Receive text input from UI or other sources
+- `POST /text-chat/` - Direct text chat with agent response extraction
 
 ### Voice-to-Text Conversion
 - `POST /voice-to-text/` - Convert single audio file to text
@@ -154,6 +156,7 @@ The following endpoints support session tracking with optional parameters:
 **Supported Endpoints:**
 - `POST /voice-to-text-forward/` - Session info included in transcription result
 - `POST /text-input-forward/` - Session info included in text input result
+- `POST /text-chat/` - Session tracking with direct agent response extraction
 
 **Session Info Format:**
 ```json
@@ -193,6 +196,42 @@ The `/voice-to-voice/` endpoint provides a complete conversational workflow:
 - `X-User-ID`: User identifier
 - `X-Channel`: Channel identifier
 - `X-Workflow`: "voice-to-voice-complete"
+
+#### 💬 **Text Chat Endpoint**
+The `/text-chat/` endpoint provides direct text communication with agent response extraction:
+
+**Process Flow:**
+1. **Text Input** → Receives text message with session tracking parameters
+2. **Format Processing** → Creates standardized text input format
+3. **API Forward** → Sends formatted request to `host.docker.internal:8003/chat`
+4. **Response Extraction** → Extracts `agent_response` from `response.agent_response` field
+5. **Response Return** → Returns agent response with session metadata
+
+**Parameters:**
+- `text` (required): Text message to send to the agent
+- `session_id` (optional): Conversation session identifier
+- `user_id` (optional): User identifier
+- `channel` (optional): Communication channel identifier
+
+**Response Format:**
+```json
+{
+  "text": "Agent's response text",
+  "session_id": "session_123",
+  "user_id": "user_456",
+  "channel": "web_chat",
+  "success": true,
+  "original_text": "User's original message",
+  "timestamp": "2025-08-04T...",
+  "source": "chat"
+}
+```
+
+**Use Cases:**
+- Direct text-based conversations with external agents
+- Streamlined chat interfaces without audio processing
+- Session-tracked messaging systems
+- Quick text queries with structured responses
 
 ### API Documentation
 Once the service is running, visit:
@@ -309,6 +348,31 @@ curl -X POST "http://localhost:8000/text-input-forward/" \
 # Note: Replace <your-jwt-token> with a valid JWT token containing "agent_group" in the groups claim
 ```
 
+### Text Chat Examples
+```bash
+# Direct text chat with agent response extraction
+curl -X POST "http://localhost:8000/text-chat/" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "text=Hello, how can you help me today?&session_id=chat_123&user_id=user_456&channel=web_chat"
+
+# Text chat with minimal parameters
+curl -X POST "http://localhost:8000/text-chat/" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "text=What is the weather like?"
+
+# Response format:
+# {
+#   "text": "Agent's response to your question",
+#   "session_id": "chat_123",
+#   "user_id": "user_456", 
+#   "channel": "web_chat",
+#   "success": true,
+#   "original_text": "Hello, how can you help me today?",
+#   "timestamp": "2025-08-04T...",
+#   "source": "chat"
+# }
+```
+
 ### REST API Forwarding
 ```bash
 # Convert audio to text and forward to external API
@@ -365,6 +429,19 @@ data = {
 response = requests.post('http://localhost:8000/text-input/', data=data)
 result = response.json()
 print(f"Text processed: {result['success']}, Length: {result['text_length']}")
+
+# Text Chat with Agent Response
+data = {
+    'text': 'Hello, how can you help me today?',
+    'session_id': 'chat_123',
+    'user_id': 'user_456',
+    'channel': 'python_client'
+}
+response = requests.post('http://localhost:8000/text-chat/', data=data)
+result = response.json()
+print(f"Agent response: {result['text']}")
+print(f"Session ID: {result['session_id']}")
+print(f"Original text: {result['original_text']}")
 
 # Voice-to-Text
 with open('audio_file.wav', 'rb') as f:
@@ -648,7 +725,7 @@ For best transcription results:
 channel_adapter/
 ├── app/
 │   ├── __init__.py              # Package initialization
-│   ├── main.py                  # Simplified FastAPI app (~300 lines, 13 endpoints with authentication)
+│   ├── main.py                  # Simplified FastAPI app (~350 lines, 14 endpoints with authentication)
 │   ├── auth.py                  # JWT authentication system with role-based access control
 │   ├── utils.py                 # Common utility functions & helpers
 │   ├── forwarding.py            # Dedicated forwarding service module
@@ -856,7 +933,7 @@ docker logs <container_id>
 ### Code Quality Improvements
 - **50% Code Reduction**: main.py simplified from 400+ to 228 lines
 - **Eliminated Code Duplication**: Header parsing, error handling, and response formatting centralized
-- **Consistent Patterns**: Standardized approach across all 13 endpoints
+- **Consistent Patterns**: Standardized approach across all 14 endpoints
 - **Type Safety**: Proper Optional type handling and parameter validation
 - **Enhanced REST Client**: Comprehensive session tracking and batch processing capabilities
 

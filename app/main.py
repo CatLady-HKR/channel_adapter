@@ -55,6 +55,7 @@ async def root():
             "voice-to-text conversion",
             "text-to-voice synthesis",
             "text input processing",
+            "text chat with agent response",
             "batch processing",
             "multiple audio formats",
             "configurable voice parameters",
@@ -192,6 +193,79 @@ async def receive_text_from_ui_and_forward(
     return await forwarding_service.forward_text_input(
         text, TARGET_URL, source or "ui", timestamp, include_metadata, custom_headers, session_id, user_id, channel
     )
+
+# Text chat endpoint - direct agent response
+@app.post("/text-chat/")
+async def text_chat_with_agent(
+    text: str = Form(...),
+    session_id: Optional[str] = Form(None),
+    user_id: Optional[str] = Form(None),
+    channel: Optional[str] = Form(None)
+):
+    """
+    Send text to external API and return agent response with session tracking.
+    Extracts agent_response from response.agent_response field.
+    """
+    try:
+        # Log the received text
+        logger.info(f"Processing text chat for session {session_id}: {text[:100]}...")
+        
+        # Create text input result format
+        text_input_result = create_text_input_result_format(text, "chat", None)
+        
+        # Add session info to text input result
+        if session_id or user_id or channel:
+            text_input_result["session_info"] = {
+                "session_id": session_id,
+                "user_id": user_id,
+                "channel": channel
+            }
+        
+        # Forward to external API
+        logger.info(f"Forwarding text to {TARGET_URL}")
+        forward_result = await rest_api_client.forward_text_input_result(
+            text,
+            text_input_result,
+            TARGET_URL,
+            session_id=session_id,
+            user_id=user_id,
+            channel=channel,
+            include_metadata=True
+        )
+        
+        if not forward_result.get("success", False):
+            raise HTTPException(status_code=500, detail="Failed to forward text to external API")
+        
+        # Extract agent response from response data
+        response_data = forward_result.get("response_data", {})
+        if 'response' not in response_data or 'agent_response' not in response_data['response']:
+            raise HTTPException(status_code=500, detail="Invalid response format from external API")
+        
+        # Extract the agent response text
+        agent_response = response_data["response"]["agent_response"]
+        
+        if not agent_response:
+            raise HTTPException(status_code=500, detail="No agent response found in external API response")
+        
+        logger.info(f"Extracted agent response: {agent_response[:100]}...")
+        
+        # Return response with session tracking
+        return {
+            "text": agent_response,
+            "session_id": session_id,
+            "user_id": user_id,
+            "channel": channel,
+            "success": True,
+            "original_text": text,
+            "timestamp": text_input_result.get("received_at"),
+            "source": "chat"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in text chat: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Text chat failed: {str(e)}")
 
 # Text-to-voice forwarding endpoints
 @app.post("/text-to-voice-forward/")
