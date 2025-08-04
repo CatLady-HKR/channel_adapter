@@ -2,7 +2,7 @@
 Main FastAPI application for Voice-Text conversion service
 Combines voice-to-text and text-to-voice functionality
 """
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Depends
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, List
@@ -14,6 +14,7 @@ from app.text_to_voice import text_to_voice_converter
 from app.rest_api_client import rest_api_client
 from app.forwarding import get_forwarding_service
 from app.utils import create_text_input_result_format, handle_api_error
+from app.auth import verify_token
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -177,6 +178,7 @@ async def forward_existing_transcription(
 # Text input forwarding endpoints
 @app.post("/text-input-forward/")
 async def receive_text_from_ui_and_forward(
+    user=Depends(verify_token(required_groups=["agent_group"])),
     text: str = Form(...),
     source: Optional[str] = Form("ui"),
     timestamp: Optional[str] = Form(None),
@@ -224,6 +226,7 @@ async def convert_text_to_voice_batch_and_forward(
 # Voice-to-Voice workflow endpoint
 @app.post("/voice-to-voice/")
 async def voice_to_voice_workflow(
+    user=Depends(verify_token(required_groups=["agent_group"])),
     file: UploadFile = File(...),
     session_id: Optional[str] = Form(None),
     user_id: Optional[str] = Form(None),
