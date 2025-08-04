@@ -272,21 +272,24 @@ async def voice_to_voice_workflow(
         
         # Step 3: Extract text from response
         response_data = forward_result.get("response_data", {})
-        response_text = None
+        if 'response' not in response_data or 'agent_response' not in response_data['response']:
+            raise HTTPException(status_code=500, detail="Invalid response format from external API")
+        # Extract the agent response text
+        response_text = response_data["response"]["agent_response"]
+
+        # # Try different common field names for text response
+        # text_fields = ["response","agent_response"]
+        # for field in text_fields:
+        #     if field in response_data and response_data[field]:
+        #         response_text = str(response_data[field])
+        #         break
         
-        # Try different common field names for text response
-        text_fields = ["response","agent_response"]
-        for field in text_fields:
-            if field in response_data and response_data[field]:
-                response_text = str(response_data[field])
-                break
-        
-        # If no text field found, try to find any string value in the response
-        if not response_text:
-            for key, value in response_data.items():
-                if isinstance(value, str) and len(value.strip()) > 0:
-                    response_text = value
-                    break
+        # # If no text field found, try to find any string value in the response
+        # if not response_text:
+        #     for key, value in response_data.items():
+        #         if isinstance(value, str) and len(value.strip()) > 0:
+        #             response_text = value
+        #             break
         
         if not response_text:
             raise HTTPException(status_code=500, detail="No text field found in external API response")

@@ -10,12 +10,14 @@
 A comprehensive FastAPI service that provides bidirectional conversion between voice and text, plus text input handling with REST API forwarding capabilities. The service supports **voice-to-text** (speech recognition), **text-to-voice** (speech synthesis), **text input processing**, and **external service integration** with advanced configuration options and multiple audio formats.
 
 ## 🚀 Current Version: 2.0.0
-**Complete Integration Hub with Modular Architecture** - The Channel Adapter now serves as a full-featured integration hub with:
+**Complete Integration Hub with Modular Architecture & Authentication** - The Channel Adapter now serves as a full-featured integration hub with:
 - ✅ **13 REST API Endpoints** covering all conversion and forwarding scenarios including voice-to-voice workflow
+- ✅ **JWT Authentication System** with role-based access control for secure endpoint access
 - ✅ **Modular Architecture** with dedicated modules for voice processing and external integrations  
 - ✅ **Enhanced REST API Client** with session tracking, batch processing, and concurrent request handling
 - ✅ **Session Tracking System** with session_id, user_id, and channel support across all forwarding endpoints
 - ✅ **Voice-to-Voice Workflow** complete conversational pipeline with external API integration
+- ✅ **Docker Integration** with host.docker.internal for seamless container communication
 - ✅ **Comprehensive Forwarding System** for all processing types with metadata enrichment
 - ✅ **Base64 Audio Encoding** for including audio data in API forwarding
 - ✅ **Concurrent Processing** with configurable limits for batch operations
@@ -49,7 +51,9 @@ A comprehensive FastAPI service that provides bidirectional conversion between v
 - 🔄 **Base64 Audio Encoding**: Include audio data in forwarded payloads
 - 👥 **Session Tracking**: Complete session management with session_id, user_id, and channel support
 - 🔄 **Voice-to-Voice Workflow**: Complete conversational pipeline with external API integration
-- 🚀 **High Performance**: Async processing with FastAPI
+- � **JWT Authentication**: Role-based access control with group permissions for secure endpoint access
+- 🐳 **Docker Integration**: Seamless container communication with host.docker.internal support
+- �🚀 **High Performance**: Async processing with FastAPI
 - 📝 **Clean API Design**: Focused RESTful endpoints with clear documentation
 - 🔧 **Cloud-based TTS**: Reliable Google Text-to-Speech integration with high-quality audio
 - 📊 **Health Monitoring**: Built-in health check endpoints
@@ -104,6 +108,43 @@ A comprehensive FastAPI service that provides bidirectional conversion between v
 - `POST /text-to-voice-forward/` - Convert text to speech and forward result to external API
 - `POST /text-to-voice-batch-forward/` - Convert multiple texts to speech and forward results to external API
 
+## 🔐 Authentication System
+
+### JWT Authentication
+The Channel Adapter now includes JWT-based authentication for secure access to sensitive endpoints.
+
+**Protected Endpoints:**
+- `POST /text-input-forward/` - Requires `agent_group` membership
+- `POST /voice-to-voice/` - Requires `agent_group` membership
+
+**Authentication Configuration:**
+- **Secret Key**: `agent-secret-key` (configurable via environment variables in production)
+- **Algorithm**: HS256
+- **Token URL**: `/token` (for OAuth2 compatibility)
+
+**User Groups:**
+- `agent_group`: Access to conversational and forwarding endpoints
+
+**Usage:**
+1. Obtain a JWT token with the required group membership
+2. Include the token in the `Authorization` header: `Bearer <your-jwt-token>`
+3. The token must contain a `groups` claim with the appropriate group (e.g., `["agent_group"]`)
+
+**Example JWT Payload:**
+```json
+{
+  "sub": "admin",
+  "groups": ["agent_group"],
+  "exp": 1625097600
+}
+```
+
+**Security Notes:**
+- In production, use environment variables for the SECRET_KEY
+- Implement proper password hashing with bcrypt (passlib dependency included)
+- Replace dummy user store with a proper database
+- Use HTTPS in production environments
+
 #### 🔍 **Session Tracking Parameters**
 The following endpoints support session tracking with optional parameters:
 - **`session_id`**: Unique identifier for the conversation/session
@@ -131,8 +172,8 @@ The `/voice-to-voice/` endpoint provides a complete conversational workflow:
 **Process Flow:**
 1. **Voice Input** → Receives audio file with session tracking
 2. **Speech-to-Text** → Converts audio to text using Google Speech Recognition
-3. **API Forward** → Sends transcription + session info to `localhost:8003`
-4. **Response Processing** → Extracts text from external API response
+3. **API Forward** → Sends transcription + session info to `host.docker.internal:8003/chat`
+4. **Response Processing** → Extracts text from external API response (supports `response` and `agent_response` fields)
 5. **Text-to-Speech** → Converts response text to audio using gTTS
 6. **Voice Output** → Returns MP3 audio file with workflow metadata
 
@@ -240,9 +281,10 @@ curl -X POST "http://localhost:8000/text-to-voice/batch/" \
 
 ### Voice-to-Voice Workflow
 ```bash
-# Complete voice-to-voice conversation workflow
+# Complete voice-to-voice conversation workflow (requires JWT authentication)
 curl -X POST "http://localhost:8000/voice-to-voice/" \
   -H "Content-Type: multipart/form-data" \
+  -H "Authorization: Bearer <your-jwt-token>" \
   -F "file=@input_audio.wav" \
   -F "session_id=conv_123" \
   -F "user_id=user_456" \
@@ -254,6 +296,17 @@ curl -X POST "http://localhost:8000/voice-to-voice/" \
 
 # The response will be an MP3 file with headers containing workflow info
 # Headers: X-Original-Text, X-Response-Text, X-Session-ID, etc.
+```
+
+### Authentication Examples
+```bash
+# Text input forwarding (requires JWT authentication)
+curl -X POST "http://localhost:8000/text-input-forward/" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -H "Authorization: Bearer <your-jwt-token>" \
+  -d "text=Hello from authenticated client&session_id=session_123&user_id=user_456&channel=web_app"
+
+# Note: Replace <your-jwt-token> with a valid JWT token containing "agent_group" in the groups claim
 ```
 
 ### REST API Forwarding
@@ -392,7 +445,7 @@ response = requests.post('http://localhost:8000/voice-to-text-batch-forward/', f
 result = response.json()
 print(f"Successful forwards: {result['successful_forwards']}/{result['total_transcriptions']}")
 
-# Text input forwarding
+# Text input forwarding (requires authentication)
 data = {
     'text': 'Hello from Python client',
     'target_url': 'https://your-api.com/webhook',
@@ -402,7 +455,10 @@ data = {
     'user_id': 'user_456',
     'channel': 'python_client'
 }
-response = requests.post('http://localhost:8000/text-input-forward/', data=data)
+headers = {
+    'Authorization': 'Bearer <your-jwt-token>'  # JWT token with agent_group membership
+}
+response = requests.post('http://localhost:8000/text-input-forward/', data=data, headers=headers)
 result = response.json()
 print(f"Text input forward success: {result['success']}")
 print(f"Session info: {result['text_input'].get('session_info', {})}")
@@ -432,7 +488,7 @@ response = requests.post('http://localhost:8000/text-to-voice-batch-forward/', d
 result = response.json()
 print(f"Batch TTS forwards: {result['successful_forwards']}/{result['total_conversions']}")
 
-# Voice-to-Voice Workflow Example
+# Voice-to-Voice Workflow Example (requires authentication)
 with open('input_audio.wav', 'rb') as f:
     files = {'file': f}
     data = {
@@ -443,7 +499,10 @@ with open('input_audio.wav', 'rb') as f:
         'voice_language': 'en',
         'slow': False
     }
-    response = requests.post('http://localhost:8000/voice-to-voice/', files=files, data=data)
+    headers = {
+        'Authorization': 'Bearer <your-jwt-token>'  # JWT token with agent_group membership
+    }
+    response = requests.post('http://localhost:8000/voice-to-voice/', files=files, data=data, headers=headers)
     
     # Save the response audio
     with open('response_audio.mp3', 'wb') as audio_file:
@@ -589,7 +648,8 @@ For best transcription results:
 channel_adapter/
 ├── app/
 │   ├── __init__.py              # Package initialization
-│   ├── main.py                  # Simplified FastAPI app (~228 lines, 12 endpoints)
+│   ├── main.py                  # Simplified FastAPI app (~300 lines, 13 endpoints with authentication)
+│   ├── auth.py                  # JWT authentication system with role-based access control
 │   ├── utils.py                 # Common utility functions & helpers
 │   ├── forwarding.py            # Dedicated forwarding service module
 │   ├── voice_to_text.py         # Voice-to-text conversion module
@@ -600,7 +660,7 @@ channel_adapter/
 ├── test_audio/                  # Directory for test audio files
 ├── Dockerfile                   # Docker configuration
 ├── docker-compose.yml           # Docker Compose configuration
-├── requirements.txt             # Python dependencies
+├── requirements.txt             # Python dependencies (includes JWT authentication)
 └── README.md                   # This file
 ```
 
@@ -613,7 +673,8 @@ channel_adapter/
 - **Easy Maintenance**: Modular design makes updates and testing much simpler
 
 ### 📦 **Module Responsibilities**
-- **`main.py`**: FastAPI app configuration and simplified endpoint definitions
+- **`main.py`**: FastAPI app configuration and simplified endpoint definitions with authentication integration
+- **`auth.py`**: JWT authentication system with role-based access control and group permissions
 - **`utils.py`**: Common utilities (header parsing, response formatting, error handling)
 - **`forwarding.py`**: ForwardingService class with all REST API forwarding logic
 - **`voice_to_text.py`**: Voice-to-text conversion using Google Speech Recognition
@@ -836,3 +897,13 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - Internet connectivity (required for Google Text-to-Speech API)
 - Audio files in supported formats: WAV, MP3, FLAC, M4A, OGG, AAC
 - Python 3.11+ (for local development)
+- JWT tokens for authentication (for protected endpoints)
+
+### Python Dependencies
+Key dependencies now include:
+- `fastapi==0.104.1` - Web framework
+- `python-jose[cryptography]==3.3.0` - JWT authentication
+- `passlib[bcrypt]==1.7.4` - Password hashing (for production)
+- `SpeechRecognition==3.10.0` - Voice-to-text conversion
+- `gtts==2.4.0` - Text-to-speech synthesis
+- `aiohttp==3.9.1` - Async HTTP client for external API integration
