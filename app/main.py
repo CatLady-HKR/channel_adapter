@@ -178,7 +178,7 @@ async def forward_existing_transcription(
 # Text input forwarding endpoints
 @app.post("/text-input-forward/")
 async def receive_text_from_ui_and_forward(
-    # user=Depends(verify_token(required_groups=["agent_group"])),
+    user=Depends(verify_token(required_groups=["agent_group"])),
     text: str = Form(...),
     source: Optional[str] = Form("ui"),
     timestamp: Optional[str] = Form(None),
@@ -226,7 +226,7 @@ async def convert_text_to_voice_batch_and_forward(
 # Voice-to-Voice workflow endpoint
 @app.post("/voice-to-voice/")
 async def voice_to_voice_workflow(
-    # user=Depends(verify_token(required_groups=["agent_group"])),
+    user=Depends(verify_token(required_groups=["agent_group"])),
     file: UploadFile = File(...),
     session_id: Optional[str] = Form(None),
     user_id: Optional[str] = Form(None),
@@ -275,7 +275,7 @@ async def voice_to_voice_workflow(
         response_text = None
         
         # Try different common field names for text response
-        text_fields = ["text", "response", "message", "reply", "answer", "content", "output"]
+        text_fields = ["response","agent_response"]
         for field in text_fields:
             if field in response_data and response_data[field]:
                 response_text = str(response_data[field])
