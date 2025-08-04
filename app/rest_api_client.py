@@ -206,9 +206,9 @@ class RestApiClient:
         # Prepare payload
         payload = {
             "text": transcription_result["text"],
-            "session_id": session_id,
-            "user_id": user_id,
-            "channel": channel,
+            "session_id": transcription_result["session_info"].get("session_id", session_id),
+            "user_id": transcription_result["session_info"].get("user_id", user_id),
+            "channel": transcription_result["session_info"].get("channel", channel),
             # "source": "channel-adapter",
             # "timestamp": transcription_result.get("timestamp", None)
         }
